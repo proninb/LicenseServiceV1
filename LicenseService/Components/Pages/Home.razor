@@ -1,0 +1,59 @@
+@page "/"
+@inject IDbContextFactory<LicenseDbContext> DatabaseFactory
+
+<PageTitle>CW License Service</PageTitle>
+
+<h1>License Service</h1>
+
+@if (!loaded)
+{
+    <p>Loading...</p>
+}
+else
+{
+    <div class="cards">
+        <div class="card">
+            <strong>@customers</strong>
+            <span>Customers</span>
+        </div>
+
+        <div class="card">
+            <strong>@servers</strong>
+            <span>Server instances</span>
+        </div>
+
+        <div class="card">
+            <strong>@activeLeases</strong>
+            <span>Active leases</span>
+        </div>
+    </div>
+}
+
+@code {
+    private bool loaded;
+    private int customers;
+    private int servers;
+    private int activeLeases;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await using var database =
+            await DatabaseFactory.CreateDbContextAsync();
+
+        var now = DateTimeOffset.UtcNow;
+
+        customers =
+            await database.Customers.CountAsync();
+
+        servers =
+            await database.ServerInstances.CountAsync();
+
+        activeLeases =
+            await database.Leases.CountAsync(
+                value =>
+                    value.ReleasedAtUtc == null &&
+                    value.ExpiresAtUtc > now);
+
+        loaded = true;
+    }
+}

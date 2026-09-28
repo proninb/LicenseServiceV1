@@ -1,0 +1,109 @@
+@page "/admin/customers"
+@rendermode InteractiveServer
+@inject IDbContextFactory<LicenseDbContext> DatabaseFactory
+
+<PageTitle>Customers</PageTitle>
+
+<h1>Customers</h1>
+
+<EditForm Model="model" OnValidSubmit="CreateAsync">
+    <DataAnnotationsValidator />
+
+    <div class="form-grid">
+        <label>
+            Name
+            <InputText @bind-Value="model.Name" />
+        </label>
+
+        <label>
+            Entra tenant ID
+            <InputText @bind-Value="model.TenantId" />
+        </label>
+
+        <label>
+            Entra client ID
+            <InputText @bind-Value="model.ClientId" />
+        </label>
+    </div>
+
+    <button type="submit">Create customer</button>
+</EditForm>
+
+<table>
+    <thead>
+        <tr>
+            <th>Name</th>
+            <th>Tenant</th>
+            <th>Client</th>
+            <th>Enabled</th>
+        </tr>
+    </thead>
+    <tbody>
+        @foreach (var customer in customers)
+        {
+            <tr>
+                <td>@customer.Name</td>
+                <td>@customer.EntraTenantId</td>
+                <td>@customer.EntraClientId</td>
+                <td>@customer.Enabled</td>
+            </tr>
+        }
+    </tbody>
+</table>
+
+@code {
+    private readonly CustomerModel model = new();
+    private List<Customer> customers = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        await ReloadAsync();
+    }
+
+    private async Task CreateAsync()
+    {
+        await using var database =
+            await DatabaseFactory.CreateDbContextAsync();
+
+        database.Customers.Add(
+            new Customer
+            {
+                Name = model.Name.Trim(),
+                EntraTenantId = model.TenantId.Trim(),
+                EntraClientId = model.ClientId.Trim(),
+                Enabled = true,
+            });
+
+        await database.SaveChangesAsync();
+
+        model.Name = string.Empty;
+        model.TenantId = string.Empty;
+        model.ClientId = string.Empty;
+
+        await ReloadAsync();
+    }
+
+    private async Task ReloadAsync()
+    {
+        await using var database =
+            await DatabaseFactory.CreateDbContextAsync();
+
+        customers =
+            await database.Customers
+                .OrderBy(value => value.Name)
+                .AsNoTracking()
+                .ToListAsync();
+    }
+
+    private sealed class CustomerModel
+    {
+        [Required]
+        public string Name { get; set; } = string.Empty;
+
+        [Required]
+        public string TenantId { get; set; } = string.Empty;
+
+        [Required]
+        public string ClientId { get; set; } = string.Empty;
+    }
+}

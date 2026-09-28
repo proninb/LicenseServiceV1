@@ -1,0 +1,47 @@
+@page "/admin/servers"
+@inject IDbContextFactory<LicenseDbContext> DatabaseFactory
+
+<PageTitle>Servers</PageTitle>
+
+<h1>Server instances</h1>
+
+<table>
+    <thead>
+        <tr>
+            <th>Instance</th>
+            <th>Customer</th>
+            <th>First seen</th>
+            <th>Last seen</th>
+            <th>Disabled</th>
+        </tr>
+    </thead>
+    <tbody>
+        @foreach (var item in servers)
+        {
+            <tr>
+                <td>@item.Id</td>
+                <td>@item.Customer?.Name</td>
+                <td>@item.FirstSeenUtc.ToString("u")</td>
+                <td>@item.LastSeenUtc.ToString("u")</td>
+                <td>@item.Disabled</td>
+            </tr>
+        }
+    </tbody>
+</table>
+
+@code {
+    private List<ServerInstance> servers = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        await using var database =
+            await DatabaseFactory.CreateDbContextAsync();
+
+        servers =
+            await database.ServerInstances
+                .Include(value => value.Customer)
+                .OrderByDescending(value => value.LastSeenUtc)
+                .AsNoTracking()
+                .ToListAsync();
+    }
+}

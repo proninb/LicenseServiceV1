@@ -1,0 +1,12 @@
+bin/
+obj/
+.vs/
+*.user
+*.suo
+publish/
+*.pfx
+*.p12
+*.key
+*.cer
+*.crt
+appsettings.Production.json

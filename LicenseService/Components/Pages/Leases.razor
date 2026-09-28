@@ -1,0 +1,51 @@
+@page "/admin/leases"
+@inject IDbContextFactory<LicenseDbContext> DatabaseFactory
+
+<PageTitle>Leases</PageTitle>
+
+<h1>Leases</h1>
+
+<table>
+    <thead>
+        <tr>
+            <th>Lease</th>
+            <th>Instance</th>
+            <th>Product</th>
+            <th>Issued</th>
+            <th>Expires</th>
+            <th>Released</th>
+            <th>Connections</th>
+        </tr>
+    </thead>
+    <tbody>
+        @foreach (var item in leases)
+        {
+            <tr>
+                <td>@item.Id</td>
+                <td>@item.ServerInstanceId</td>
+                <td>@item.Product</td>
+                <td>@item.IssuedAtUtc.ToString("u")</td>
+                <td>@item.ExpiresAtUtc.ToString("u")</td>
+                <td>@(item.ReleasedAtUtc?.ToString("u") ?? "-")</td>
+                <td>@item.MaxConnections</td>
+            </tr>
+        }
+    </tbody>
+</table>
+
+@code {
+    private List<LeaseRecord> leases = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        await using var database =
+            await DatabaseFactory.CreateDbContextAsync();
+
+        leases =
+            await database.Leases
+                .OrderByDescending(value => value.IssuedAtUtc)
+                .Take(500)
+                .AsNoTracking()
+                .ToListAsync();
+    }
+}

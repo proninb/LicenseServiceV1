@@ -1,0 +1,160 @@
+@page "/admin/entitlements"
+@rendermode InteractiveServer
+@inject IDbContextFactory<LicenseDbContext> DatabaseFactory
+
+<PageTitle>Entitlements</PageTitle>
+
+<h1>Entitlements</h1>
+
+<EditForm Model="model" OnValidSubmit="CreateAsync">
+    <DataAnnotationsValidator />
+
+    <div class="form-grid">
+        <label>
+            Customer
+            <InputSelect @bind-Value="model.CustomerId">
+                <option value="@Guid.Empty">Select...</option>
+                @foreach (var customer in customers)
+                {
+                    <option value="@customer.Id">@customer.Name</option>
+                }
+            </InputSelect>
+        </label>
+
+        <label>
+            Product
+            <InputText @bind-Value="model.Product" />
+        </label>
+
+        <label>
+            Expires UTC
+            <InputDate @bind-Value="model.ExpiresDate" />
+        </label>
+
+        <label>
+            Max active servers
+            <InputNumber @bind-Value="model.MaxActiveServers" />
+        </label>
+
+        <label>
+            Max connections/server
+            <InputNumber @bind-Value="model.MaxConnectionsPerServer" />
+        </label>
+
+        <label>
+            Lease minutes
+            <InputNumber @bind-Value="model.LeaseMinutes" />
+        </label>
+    </div>
+
+    <button type="submit">Create entitlement</button>
+</EditForm>
+
+<table>
+    <thead>
+        <tr>
+            <th>Customer</th>
+            <th>Product</th>
+            <th>Expires</th>
+            <th>Servers</th>
+            <th>Connections</th>
+            <th>Lease min</th>
+        </tr>
+    </thead>
+    <tbody>
+        @foreach (var item in entitlements)
+        {
+            <tr>
+                <td>@item.Customer?.Name</td>
+                <td>@item.Product</td>
+                <td>@item.ExpiresAtUtc.ToString("u")</td>
+                <td>@item.MaxActiveServers</td>
+                <td>@item.MaxConnectionsPerServer</td>
+                <td>@item.LeaseMinutes</td>
+            </tr>
+        }
+    </tbody>
+</table>
+
+@code {
+    private readonly EntitlementModel model = new();
+    private List<Customer> customers = [];
+    private List<Entitlement> entitlements = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        await ReloadAsync();
+    }
+
+    private async Task CreateAsync()
+    {
+        if (model.CustomerId == Guid.Empty)
+        {
+            return;
+        }
+
+        await using var database =
+            await DatabaseFactory.CreateDbContextAsync();
+
+        database.Entitlements.Add(
+            new Entitlement
+            {
+                CustomerId = model.CustomerId,
+                Product = model.Product.Trim(),
+                ExpiresAtUtc =
+                    new DateTimeOffset(
+                        DateTime.SpecifyKind(
+                            model.ExpiresDate.ToDateTime(
+                                TimeOnly.MaxValue),
+                            DateTimeKind.Utc)),
+                MaxActiveServers = model.MaxActiveServers,
+                MaxConnectionsPerServer = model.MaxConnectionsPerServer,
+                LeaseMinutes = model.LeaseMinutes,
+                Enabled = true,
+            });
+
+        await database.SaveChangesAsync();
+
+        await ReloadAsync();
+    }
+
+    private async Task ReloadAsync()
+    {
+        await using var database =
+            await DatabaseFactory.CreateDbContextAsync();
+
+        customers =
+            await database.Customers
+                .OrderBy(value => value.Name)
+                .AsNoTracking()
+                .ToListAsync();
+
+        entitlements =
+            await database.Entitlements
+                .Include(value => value.Customer)
+                .OrderBy(value => value.Customer!.Name)
+                .ThenBy(value => value.Product)
+                .AsNoTracking()
+                .ToListAsync();
+    }
+
+    private sealed class EntitlementModel
+    {
+        public Guid CustomerId { get; set; }
+
+        [Required]
+        public string Product { get; set; } = "ServerEngineV4";
+
+        public DateOnly ExpiresDate { get; set; } =
+            DateOnly.FromDateTime(DateTime.UtcNow.AddYears(1));
+
+        [Range(1, int.MaxValue)]
+        public int MaxActiveServers { get; set; } = 1;
+
+        [Range(1, int.MaxValue)]
+        public int MaxConnectionsPerServer { get; set; } = 32;
+
+        [Range(1, 1440)]
+        public int LeaseMinutes { get; set; } = 60;
+    }
+}
